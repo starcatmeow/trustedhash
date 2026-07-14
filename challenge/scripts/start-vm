@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 <dir>"
+  exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIR="$(realpath "$1")"
+SWTPM_SOCK="$DIR/swtpm.sock"
+UEFI_NVRAM="$DIR/nvram.fd"
+QEMU_BIN="$(command -v qemu-system-x86_64)"
+QEMU_IMG_BIN="$(command -v qemu-img)"
+QEMU_BIN_DIR="$(dirname "$QEMU_BIN")"
+EDK2_CODE="$(realpath "$QEMU_BIN_DIR/../share/qemu/edk2-x86_64-secure-code.fd")"
+VNC_PASSWD="$DIR/vnc-passwd.txt"
+DATA_DISK="$DIR/data.qcow2"
+QEMU_MONITOR_MODE="${TRUSTED_HASH_QEMU_MONITOR:-mux}"
+VM_MODE="${TRUSTED_HASH_VM_MODE:-provision}"
+VNC_DISPLAY=0
+VNC_TCP_PORT=5900
+VNC_WEBSOCKET_PORT=5700
+SSH_HOST_PORT=2222
+AGENT_HOST_PORT=31337
+
+# VM startup has two explicit exposure modes. The portal uses `provision` until
+# it captures the initial trusted state and installs the one-time root password.
+# Only after that setup completes does it restart the VM in `public` mode.
+case "$VM_MODE" in
+  provision)
+    VNC_BIND="127.0.0.1"
+    SSH_HOSTFWD_BIND="127.0.0.1"
+    AGENT_HOSTFWD_BIND="127.0.0.1"
+    ;;
+  public)
+    VNC_BIND="0.0.0.0"
+    SSH_HOSTFWD_BIND="0.0.0.0"
+    AGENT_HOSTFWD_BIND="0.0.0.0"
+    ;;
+  *)
+    echo "unsupported TRUSTED_HASH_VM_MODE value: $VM_MODE" >&2
+    echo "supported values: provision, public" >&2
+    exit 1
+    ;;
+esac
+
+case "$QEMU_MONITOR_MODE" in
+  mux)
+    SERIAL_ARGS=(-serial mon:stdio)
+    ;;
+  none)
+    SERIAL_ARGS=(-monitor none -serial stdio)
+    ;;
+  *)
+    echo "unsupported TRUSTED_HASH_QEMU_MONITOR value: $QEMU_MONITOR_MODE" >&2
+    echo "supported values: mux, none" >&2
+    exit 1
+    ;;
+esac
+
+SSH_HOSTFWD="hostfwd=tcp:$SSH_HOSTFWD_BIND:$SSH_HOST_PORT-:22"
+AGENT_HOSTFWD="hostfwd=tcp:$AGENT_HOSTFWD_BIND:$AGENT_HOST_PORT-:31337"
+
+if [ ! -e "$VNC_PASSWD" ]; then
+  openssl rand -hex 8 > "$VNC_PASSWD"
+fi
+
+if [ ! -e "$DATA_DISK" ]; then
+  "$QEMU_IMG_BIN" create -f qcow2 "$DATA_DISK" 5G
+fi
+
+VNC_WEBSOCKET="127.0.0.1:$VNC_WEBSOCKET_PORT"
+
+"$SCRIPT_DIR/launch-swtpm" "$DIR" &
+SWTPM_PID="$!"
+trap 'kill "$SWTPM_PID" >/dev/null 2>&1 || true' EXIT
+
+"$QEMU_BIN" \
+  -enable-kvm \
+  -machine q35,smm=on \
+  -cpu host \
+  -m 512 \
+  -smp 1 \
+  -drive "if=pflash,format=raw,readonly=on,file=$EDK2_CODE" \
+  -drive "if=pflash,format=raw,file=$UEFI_NVRAM" \
+  -chardev "socket,id=chrtpm,path=$SWTPM_SOCK" \
+  -tpmdev emulator,id=tpm0,chardev=chrtpm \
+  -device tpm-tis,tpmdev=tpm0 \
+  -object "secret,id=vncsec0,file=$VNC_PASSWD" \
+  -vnc "$VNC_BIND:$VNC_DISPLAY,password-secret=vncsec0,websocket=$VNC_WEBSOCKET" \
+  -nic "user,id=net0,$SSH_HOSTFWD,$AGENT_HOSTFWD,model=virtio" \
+  -vga std \
+  "${SERIAL_ARGS[@]}" \
+  -drive "if=virtio,format=qcow2,file=$DIR/disk.qcow2" \
+  -drive "if=virtio,format=qcow2,file=$DATA_DISK"

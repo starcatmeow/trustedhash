@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 <dir>"
+  exit 1
+fi
+
+DIR="$(realpath "$1")"
+TPM_DIR="$DIR/tpm"
+SWTPM_SOCK="$DIR/swtpm.sock"
+swtpm socket \
+  --tpm2 \
+  --tpmstate "dir=$TPM_DIR" \
+  --ctrl "type=unixio,path=$SWTPM_SOCK" \
+  --flags not-need-init

@@ -1,0 +1,8 @@
+.direnv/
+__pycache__/
+linux/
+test*/
+result*
+target/
+challenge/.secrets/
+challenge/release/

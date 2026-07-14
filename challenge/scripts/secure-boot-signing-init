@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHALLENGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+KEYDIR="${TRUSTED_HASH_SECURE_BOOT_DIR:-$CHALLENGE_DIR/.secrets/secure-boot-signing}"
+KEYDIR="$(realpath -m "$KEYDIR")"
+
+if [ "${1:-}" = "--print-dir" ]; then
+  echo "$KEYDIR"
+  exit 0
+fi
+
+GUID="$KEYDIR/GUID"
+
+if [ -f "$GUID" ] &&
+  [ -f "$KEYDIR/PK/PK.key" ] &&
+  [ -f "$KEYDIR/PK/PK.pem" ] &&
+  [ -f "$KEYDIR/KEK/KEK.key" ] &&
+  [ -f "$KEYDIR/KEK/KEK.pem" ] &&
+  [ -f "$KEYDIR/db/db.key" ] &&
+  [ -f "$KEYDIR/db/db.pem" ]; then
+  exit 0
+fi
+
+if [ -e "$KEYDIR" ] && find "$KEYDIR" -mindepth 1 -print -quit | grep -q .; then
+  echo "secure boot signing material is incomplete in $KEYDIR" >&2
+  echo "remove the directory or provide GUID plus PK/KEK/db keypairs" >&2
+  exit 1
+fi
+
+mkdir -p "$KEYDIR"
+sbctl create-keys -d "$GUID" -e "$KEYDIR" --disable-landlock

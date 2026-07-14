@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHALLENGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+KEYDIR="${TRUSTED_HASH_MODULE_SIGNING_DIR:-$CHALLENGE_DIR/.secrets/module-signing}"
+KEYDIR="$(realpath -m "$KEYDIR")"
+KEY="$KEYDIR/module-signing.key"
+CERT="$KEYDIR/module-signing.pem"
+
+if [ "${1:-}" = "--print-dir" ]; then
+  echo "$KEYDIR"
+  exit 0
+fi
+
+mkdir -p "$KEYDIR"
+chmod 700 "$KEYDIR"
+
+if [ -f "$KEY" ] && [ -f "$CERT" ]; then
+  exit 0
+fi
+
+if [ -e "$KEY" ] || [ -e "$CERT" ]; then
+  echo "module signing keypair is incomplete in $KEYDIR" >&2
+  echo "remove both files or provide both module-signing.key and module-signing.pem" >&2
+  exit 1
+fi
+
+openssl req \
+  -new \
+  -x509 \
+  -newkey rsa:2048 \
+  -keyout "$KEY" \
+  -out "$CERT" \
+  -nodes \
+  -days 36500 \
+  -subj "/CN=trusted-hash module signing/"
+
+chmod 600 "$KEY"

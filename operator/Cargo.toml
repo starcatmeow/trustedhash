@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "trusted_hash_portal",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"

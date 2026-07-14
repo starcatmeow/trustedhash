@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "trusted_hash_agent",
+    "trusted_hash_attester",
+    "trusted_hash_common",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"

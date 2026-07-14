@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Trusted Hash Environment</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f6f7f9;
+        color: #17202a;
+      }
+      body { margin: 0; }
+      main {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+      h1 { font-size: 28px; margin: 0 0 24px; }
+      h2 { font-size: 17px; margin: 0 0 12px; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+      }
+      .panel {
+        border: 1px solid #d5dbe3;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 16px;
+      }
+      .value {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      .muted { color: #5f6b7a; }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: #e8eef7;
+        color: #25344a;
+        font-size: 13px;
+      }
+      .ok { background: #dff3e7; color: #174f2a; }
+      .fail { background: #f8dddd; color: #7c1c1c; }
+      .running { background: #fff0c2; color: #654700; }
+      .notice {
+        border-left: 3px solid #d48b00;
+        margin: 12px 0;
+        padding: 8px 10px;
+        background: #fff7df;
+        color: #5c4200;
+      }
+      button {
+        border: 1px solid #b9c2cf;
+        border-radius: 6px;
+        background: #ffffff;
+        color: inherit;
+        min-height: 36px;
+        padding: 0 12px;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+      }
+      .novnc {
+        width: 100%;
+        min-height: 520px;
+        border: 1px solid #d5dbe3;
+        border-radius: 8px;
+        background: #0f1216;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root { background: #15181c; color: #ecf0f4; }
+        .panel { background: #1d2228; border-color: #39424d; }
+        button { background: #252b33; border-color: #4a5562; }
+        .muted { color: #a9b3bf; }
+        .notice { background: #332a14; color: #f3d58b; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Trusted Hash Environment</h1>
+      <div class="grid">
+        <section class="panel">
+          <h2>VM</h2>
+          <p><span id="phase" class="status">loading</span></p>
+          <p class="muted">Use the SSH, VNC, and trusted_hash_agent addresses shown by the CTF platform. Use the passwords returned when you create the VM.</p>
+          <div id="credentials" hidden>
+            <p>Root password: <span id="root-password" class="value"></span></p>
+            <p>VNC password: <span id="vnc-password" class="value"></span></p>
+            <p class="notice">Copy these passwords now. They are shown only once.</p>
+          </div>
+          <button id="create-vm">Create VM</button>
+          <button id="restart">Restart VM</button>
+          <button id="connect-vnc">Open noVNC</button>
+        </section>
+        <section class="panel">
+          <h2>Attester</h2>
+          <p><span id="attester" class="status">pending</span></p>
+          <div id="stages"></div>
+        </section>
+      </div>
+      <section class="panel" style="margin-top: 16px">
+        <h2>Latest Attester Output</h2>
+        <pre id="output" class="value"></pre>
+      </section>
+      <section class="panel" style="margin-top: 16px">
+        <h2>Console</h2>
+        <iframe id="novnc" class="novnc" title="VM noVNC console"></iframe>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

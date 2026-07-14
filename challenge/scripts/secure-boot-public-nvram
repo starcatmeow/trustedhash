@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 <secure-boot-public-dir> <out-nvram.fd>" >&2
+  exit 1
+fi
+
+PUBLIC_DIR="$(realpath "$1")"
+OUT_NVRAM="$(realpath -m "$2")"
+GUID_FILE="$PUBLIC_DIR/GUID"
+
+for required in \
+  "$GUID_FILE" \
+  "$PUBLIC_DIR/PK/PK.pem" \
+  "$PUBLIC_DIR/KEK/KEK.pem" \
+  "$PUBLIC_DIR/db/db.pem"; do
+  if [ ! -f "$required" ]; then
+    echo "missing Secure Boot public material: $required" >&2
+    exit 1
+  fi
+done
+
+GUID="$(cat "$GUID_FILE")"
+QEMU_BIN="$(command -v qemu-system-x86_64)"
+QEMU_BIN_DIR="$(dirname "$QEMU_BIN")"
+EDK2_VARS="$(realpath "$QEMU_BIN_DIR/../share/qemu/edk2-i386-vars.fd")"
+mkdir -p "$(dirname "$OUT_NVRAM")"
+
+virt-fw-vars \
+  --input "$EDK2_VARS" \
+  --output "$OUT_NVRAM" \
+  --set-pk "$GUID" "$PUBLIC_DIR/PK/PK.pem" \
+  --add-kek "$GUID" "$PUBLIC_DIR/KEK/KEK.pem" \
+  --add-db "$GUID" "$PUBLIC_DIR/db/db.pem" \
+  --no-microsoft \
+  --secure-boot

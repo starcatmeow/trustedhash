@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "Usage: $0 <release-dir>" >&2
+  echo "  Builds the release artifact through a privileged Dockerized Nix environment." >&2
+  echo "  Optional env: NIX_DOCKER_IMAGE, NIX_DOCKER_VOLUME." >&2
+}
+
+if [ "$#" -ne 1 ]; then
+  usage
+  exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHALLENGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$CHALLENGE_DIR/.." && pwd)"
+RELEASE_DIR="$(realpath -m "$1")"
+NIX_DOCKER_IMAGE="${NIX_DOCKER_IMAGE:-nixos/nix:2.28.3}"
+NIX_DOCKER_VOLUME="${NIX_DOCKER_VOLUME:-trusted-hash-nix}"
+
+case "$RELEASE_DIR" in
+  "$REPO_ROOT"/*)
+    CONTAINER_RELEASE_DIR="${RELEASE_DIR#"$REPO_ROOT"/}"
+    ;;
+  *)
+    echo "release-dir must be inside the repository: $RELEASE_DIR" >&2
+    exit 1
+    ;;
+esac
+
+docker volume create "$NIX_DOCKER_VOLUME" >/dev/null
+
+docker run --rm --privileged \
+  -v "$NIX_DOCKER_VOLUME:/nix" \
+  -v "$REPO_ROOT:/work" \
+  -w /work \
+  "$NIX_DOCKER_IMAGE" \
+  bash -lc '
+    set -euo pipefail
+    mkdir -p /etc/nix
+    cat > /etc/nix/nix.conf <<EOF
+experimental-features = nix-command flakes
+accept-flake-config = true
+sandbox = false
+EOF
+    export XDG_CACHE_HOME=/tmp/nix-cache
+    git config --global --add safe.directory /work
+    cd /work/challenge
+    nix develop .#default --command ./scripts/build-release "$1"
+  ' bash "/work/$CONTAINER_RELEASE_DIR"

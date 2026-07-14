@@ -1,0 +1,23 @@
+# Run from the repository root after building the challenge release:
+#
+#   ./challenge/scripts/build-release challenge/release/current
+#   FLAG=flag{local-test} \
+#     docker compose -f operator/docker/player-portal.compose.yml up --build
+#
+# The portal runs QEMU directly. The container needs KVM access.
+services:
+  portal:
+    image: trusted-hash-portal:local
+    build:
+      context: ../..
+      dockerfile: operator/docker/player-portal.Dockerfile
+      args:
+        RELEASE_DIR: ${TH_RELEASE_DIR:-challenge/release/current}
+    init: true
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    environment:
+      TH_PORTAL_ADDR: ${TH_PORTAL_ADDR:-0.0.0.0:8081}
+      FLAG: ${FLAG:?set FLAG}
+      TH_TEST_INTERVAL_SECONDS: ${TH_TEST_INTERVAL_SECONDS:-30}

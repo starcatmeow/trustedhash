@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 <dir>"
+  exit 1
+fi
+DIR="$(realpath "$1")"
+LOCAL_CA_DIR="$DIR/ca"
+mkdir -p "$LOCAL_CA_DIR"
+LOCAL_CA_CONF="$LOCAL_CA_DIR/swtpm-localca.conf"
+LOCAL_CA_OPTIONS="$LOCAL_CA_DIR/swtpm-localca.options"
+cat <<EOF > "$LOCAL_CA_CONF"
+statedir = $LOCAL_CA_DIR
+signingkey = $LOCAL_CA_DIR/signkey.pem
+issuercert = $LOCAL_CA_DIR/issuercert.pem
+certserial = $LOCAL_CA_DIR/certserial
+EOF
+cat <<EOF > "$LOCAL_CA_OPTIONS"
+--platform-manufacturer r3kapig
+--platform-version 2.1
+--platform-model QEMU
+EOF
+
+SWTPM_SETUP_CONF="$DIR/swtpm_setup.conf"
+cat <<EOF > "$SWTPM_SETUP_CONF"
+create_certs_tool=$(command -v swtpm_localca)
+create_certs_tool_config=$LOCAL_CA_CONF
+create_certs_tool_options=$LOCAL_CA_OPTIONS
+active_pcr_banks = sha256
+rsa_keysize = 2048
+profile = {"Name": "default-v1"}
+EOF
+
+TPM_DIR="$DIR/tpm"
+mkdir -p "$TPM_DIR"
+swtpm_setup --config "$SWTPM_SETUP_CONF" --tpm-state "$TPM_DIR" --create-ek-cert --create-platform-cert --tpm2

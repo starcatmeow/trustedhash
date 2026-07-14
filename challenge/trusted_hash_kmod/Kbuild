@@ -1,0 +1,2 @@
+obj-m := trusted_hash.o
+trusted_hash-y := module.o dev.o cmd.o tpm.o

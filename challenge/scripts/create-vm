@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "Usage: $0 <release-dir> <vm-dir>" >&2
+  echo "  Creates per-player TPM state, Secure Boot NVRAM, and a writable qcow2 overlay." >&2
+}
+
+if [ "$#" -ne 2 ]; then
+  usage
+  exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RELEASE_DIR="$(realpath "$1")"
+VM_DIR="$2"
+
+BASE_QCOW2="$RELEASE_DIR/os/disk.qcow2"
+SECURE_BOOT_PUBLIC="$RELEASE_DIR/secure-boot-public"
+
+if [ ! -f "$BASE_QCOW2" ]; then
+  echo "missing release qcow2: $BASE_QCOW2" >&2
+  exit 1
+fi
+
+if [ ! -d "$SECURE_BOOT_PUBLIC" ]; then
+  echo "missing release Secure Boot public directory: $SECURE_BOOT_PUBLIC" >&2
+  exit 1
+fi
+
+mkdir -- "$VM_DIR"
+VM_DIR="$(realpath "$VM_DIR")"
+
+"$SCRIPT_DIR/tpm-init" "$VM_DIR"
+"$SCRIPT_DIR/secure-boot-public-nvram" "$SECURE_BOOT_PUBLIC" "$VM_DIR/nvram.fd"
+qemu-img create -f qcow2 -b "$BASE_QCOW2" -F qcow2 "$VM_DIR/disk.qcow2"
+
+echo "player_vm_dir=$VM_DIR"
+echo "player_vm_qcow2=$VM_DIR/disk.qcow2"
+echo "player_vm_nvram=$VM_DIR/nvram.fd"

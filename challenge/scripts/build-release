@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "Usage: $0 <release-dir>" >&2
+  echo "  Builds a reusable player VM base image and exports Secure Boot public material." >&2
+}
+
+if [ "$#" -ne 1 ]; then
+  usage
+  exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHALLENGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+CHALLENGE_OS="$CHALLENGE_DIR/os"
+RELEASE_DIR="$(realpath -m "$1")"
+
+"$SCRIPT_DIR/secure-boot-signing-init"
+"$SCRIPT_DIR/module-signing-init"
+
+SECURE_BOOT_KEYS="$("$SCRIPT_DIR/secure-boot-signing-init" --print-dir)"
+MODULE_SIGNING_KEYS="$("$SCRIPT_DIR/module-signing-init" --print-dir)"
+
+WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/trusted-hash-release.XXXXXX")"
+cleanup_workdir() {
+  if [ -d "$WORKDIR" ]; then
+    chmod -R u+rwX "$WORKDIR" 2>/dev/null || true
+    rm -rf "$WORKDIR"
+  fi
+}
+trap cleanup_workdir EXIT
+
+RELEASE_OUT="$(nix build --no-link --print-out-paths "$CHALLENGE_OS#release" \
+  --no-write-lock-file \
+  --override-input trusted_hash_kmod "path:$CHALLENGE_DIR/trusted_hash_kmod" \
+  --override-input trusted_hash_workspace "path:$CHALLENGE_DIR" \
+  --override-input secureBootKeys "path:$SECURE_BOOT_KEYS" \
+  --override-input moduleSigningKeys "path:$MODULE_SIGNING_KEYS")"
+
+cp -aL "$RELEASE_OUT/." "$WORKDIR/"
+chmod -R u+rwX "$WORKDIR"
+"$SCRIPT_DIR/secure-boot-public-nvram" \
+  "$WORKDIR/secure-boot-public" \
+  "$WORKDIR/secure-boot-public/nvram-template.fd"
+
+cat >> "$WORKDIR/manifest.env" <<EOF
+secure_boot_nvram_template=secure-boot-public/nvram-template.fd
+EOF
+
+rm -rf "$RELEASE_DIR"
+mkdir -p "$(dirname "$RELEASE_DIR")"
+mv "$WORKDIR" "$RELEASE_DIR"
+
+echo "release_dir=$RELEASE_DIR"
+echo "release_qcow2=$RELEASE_DIR/os/disk.qcow2"
+echo "release_secure_boot_public=$RELEASE_DIR/secure-boot-public"
