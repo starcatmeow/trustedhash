@@ -9,7 +9,8 @@ flag from an attested hashing workflow without breaking the underlying
 cryptographic primitives.
 
 For the challenge design, intended solution, unintended solutions, and
-postmortem, see the [writeup](./writeup.md).
+postmortem, see the [writeup](./writeup.md) or its
+[Chinese version](./writeup-zh.md).
 
 ## Repository Structure
 
@@ -20,5 +21,6 @@ postmortem, see the [writeup](./writeup.md).
   including the player portal, container configuration, and deployment notes.
 - [`writeup.md`](./writeup.md) contains the full challenge writeup and
   postmortem.
+- [`writeup-zh.md`](./writeup-zh.md) is the Chinese version of the writeup.
 - `flake.nix` and `flake.lock` define the top-level Nix workspace used to build
   and develop the challenge and operator components.
